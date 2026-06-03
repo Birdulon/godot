@@ -106,5 +106,8 @@ module_obj = []
 env_jpg.add_source_files(module_obj, "*.cpp")
 env.modules_sources += module_obj
 
+# Link the libjxl library for JPEG-XL support
+env.Append(LIBS=["jxl"])
+
 # Needed to force rebuilding the module files when the thirdparty library is updated.
 env.Depends(module_obj, thirdparty_obj)

@@ -1,5 +1,5 @@
 /**************************************************************************/
-/*  register_types.cpp                                                    */
+/*  image_loader_libjxl.h                                                 */
 /**************************************************************************/
 /*                         This file is part of:                          */
 /*                             GODOT ENGINE                               */
@@ -28,57 +28,16 @@
 /* SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                 */
 /**************************************************************************/
 
-#include "register_types.h"
+#ifndef IMAGE_LOADER_LIBJXL_H
+#define IMAGE_LOADER_LIBJXL_H
 
-#include "resource_saver_jxl.h"
-#include "image_loader_libjxl.h"
-#include "movie_writer_mjpeg.h"
+#include "core/io/image_loader.h"
 
-#include "core/object/class_db.h"
+class ImageLoaderLibJXL : public ImageFormatLoader {
+public:
+	virtual Error load_image(Ref<Image> p_image, Ref<FileAccess> f, BitField<ImageFormatLoader::LoaderFlags> p_flags, float p_scale) override;
+	virtual void get_recognized_extensions(List<String> *p_extensions) const override;
+	ImageLoaderLibJXL();
+};
 
-static Ref<ImageLoaderLibJXL> image_loader_libjxl;
-static Ref<ResourceFormatSaverJXL> resource_saver_jxl;
-static MovieWriterMJPEG *writer_mjpeg = nullptr;
-
-void initialize_jpg_module(ModuleInitializationLevel p_level) {
-	switch (p_level) {
-		case MODULE_INITIALIZATION_LEVEL_SERVERS: {
-			if constexpr (GD_IS_CLASS_ENABLED(MovieWriterMJPEG)) {
-				writer_mjpeg = memnew(MovieWriterMJPEG);
-				MovieWriter::add_writer(writer_mjpeg);
-			}
-		} break;
-
-		case MODULE_INITIALIZATION_LEVEL_SCENE: {
-			image_loader_libjxl.instantiate();
-			ImageLoader::add_image_format_loader(image_loader_libjxl);
-
-			resource_saver_jxl.instantiate();
-			ResourceSaver::add_resource_format_saver(resource_saver_jxl);
-		} break;
-
-		default:
-			break;
-	}
-}
-
-void uninitialize_jpg_module(ModuleInitializationLevel p_level) {
-	switch (p_level) {
-		case MODULE_INITIALIZATION_LEVEL_SCENE: {
-			ResourceSaver::remove_resource_format_saver(resource_saver_jxl);
-			resource_saver_jxl.unref();
-
-			ImageLoader::remove_image_format_loader(image_loader_libjxl);
-			image_loader_libjxl.unref();
-		} break;
-
-		case MODULE_INITIALIZATION_LEVEL_SERVERS: {
-			if constexpr (GD_IS_CLASS_ENABLED(MovieWriterMJPEG)) {
-				memdelete(writer_mjpeg);
-			}
-		} break;
-
-		default:
-			break;
-	}
-}
+#endif // IMAGE_LOADER_LIBJXL_H

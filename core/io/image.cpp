@@ -2805,6 +2805,14 @@ Error Image::save_jpg(const String &p_path, float p_quality) const {
 	return save_jpg_func(p_path, Ref<Image>((Image *)this), p_quality);
 }
 
+Error Image::save_jxl(const String &p_path, float p_quality) const {
+	if (save_jxl_func == nullptr) {
+		return ERR_UNAVAILABLE;
+	}
+
+	return save_jxl_func(p_path, Ref<Image>((Image *)this), p_quality);
+}
+
 Vector<uint8_t> Image::save_png_to_buffer() const {
 	if (save_png_buffer_func == nullptr) {
 		return Vector<uint8_t>();
@@ -2819,6 +2827,14 @@ Vector<uint8_t> Image::save_jpg_to_buffer(float p_quality) const {
 	}
 
 	return save_jpg_buffer_func(Ref<Image>((Image *)this), p_quality);
+}
+
+Vector<uint8_t> Image::save_jxl_to_buffer(float p_quality) const {
+	if (save_jxl_buffer_func == nullptr) {
+		return Vector<uint8_t>();
+	}
+
+	return save_jxl_buffer_func(Ref<Image>((Image *)this), p_quality);
 }
 
 Error Image::save_exr(const String &p_path, bool p_grayscale, bool p_color_image, float p_max_value) const {
@@ -3883,6 +3899,8 @@ void Image::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("save_png_to_buffer"), &Image::save_png_to_buffer);
 	ClassDB::bind_method(D_METHOD("save_jpg", "path", "quality"), &Image::save_jpg, DEFVAL(0.75));
 	ClassDB::bind_method(D_METHOD("save_jpg_to_buffer", "quality"), &Image::save_jpg_to_buffer, DEFVAL(0.75));
+	ClassDB::bind_method(D_METHOD("save_jxl", "path", "quality"), &Image::save_jxl, DEFVAL(1.0f));
+	ClassDB::bind_method(D_METHOD("save_jxl_to_buffer", "quality"), &Image::save_jxl_to_buffer, DEFVAL(1.0f));
 	ClassDB::bind_method(D_METHOD("save_exr", "path", "grayscale", "color_image", "max_linear_value"), &Image::save_exr, DEFVAL(false), DEFVAL(false), DEFVAL(-1.0));
 	ClassDB::bind_method(D_METHOD("save_exr_to_buffer", "grayscale", "color_image", "max_linear_value"), &Image::save_exr_to_buffer, DEFVAL(false), DEFVAL(false), DEFVAL(-1.0));
 	ClassDB::bind_method(D_METHOD("save_dds", "path"), &Image::save_dds);
@@ -3937,6 +3955,7 @@ void Image::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("load_png_from_buffer", "buffer"), &Image::load_png_from_buffer);
 	ClassDB::bind_method(D_METHOD("load_jpg_from_buffer", "buffer"), &Image::load_jpg_from_buffer);
+	ClassDB::bind_method(D_METHOD("load_jxl_from_buffer", "buffer"), &Image::load_jxl_from_buffer);
 	ClassDB::bind_method(D_METHOD("load_webp_from_buffer", "buffer"), &Image::load_webp_from_buffer);
 	ClassDB::bind_method(D_METHOD("load_tga_from_buffer", "buffer"), &Image::load_tga_from_buffer);
 	ClassDB::bind_method(D_METHOD("load_bmp_from_buffer", "buffer"), &Image::load_bmp_from_buffer);
@@ -4440,6 +4459,10 @@ Error Image::load_png_from_buffer(const Vector<uint8_t> &p_array) {
 
 Error Image::load_jpg_from_buffer(const Vector<uint8_t> &p_array) {
 	return _load_from_buffer(p_array, _jpg_mem_loader_func);
+}
+
+Error Image::load_jxl_from_buffer(const Vector<uint8_t> &p_array) {
+	return _load_from_buffer(p_array, _jxl_mem_loader_func);
 }
 
 Error Image::load_exr_from_buffer(const Vector<uint8_t> &p_array) {

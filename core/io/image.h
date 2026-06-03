@@ -49,6 +49,9 @@ typedef Vector<uint8_t> (*SavePNGBufferFunc)(const Ref<Image> &p_img);
 typedef Error (*SaveJPGFunc)(const String &p_path, const Ref<Image> &p_img, float p_quality);
 typedef Vector<uint8_t> (*SaveJPGBufferFunc)(const Ref<Image> &p_img, float p_quality);
 
+typedef Error (*SaveJXLFunc)(const String &p_path, const Ref<Image> &p_img, float p_quality);
+typedef Vector<uint8_t> (*SaveJXLBufferFunc)(const Ref<Image> &p_img, float p_quality);
+
 typedef Ref<Image> (*ImageMemLoadFunc)(const uint8_t *p_data, int p_size);
 typedef Ref<Image> (*ScalableImageMemLoadFunc)(const uint8_t *p_data, int p_size, float p_scale);
 
@@ -213,6 +216,8 @@ public:
 	static inline SaveJPGBufferFunc save_jpg_buffer_func = nullptr;
 	static inline SaveWebPBufferFunc save_webp_buffer_func = nullptr;
 	static inline SaveDDSBufferFunc save_dds_buffer_func = nullptr;
+	static inline SaveJXLFunc save_jxl_func = nullptr;
+	static inline SaveJXLBufferFunc save_jxl_buffer_func = nullptr;
 
 	// External loader function pointers.
 
@@ -226,6 +231,7 @@ public:
 	static inline ImageMemLoadFunc _ktx_mem_loader_func = nullptr;
 	static inline ImageMemLoadFunc _dds_mem_loader_func = nullptr;
 	static inline ImageMemLoadFunc _exr_mem_loader_func = nullptr;
+	static inline ImageMemLoadFunc _jxl_mem_loader_func = nullptr;
 
 	// External VRAM compression function pointers.
 
@@ -370,9 +376,11 @@ public:
 	static Ref<Image> load_from_file(const String &p_path);
 	Error save_png(const String &p_path) const;
 	Error save_jpg(const String &p_path, float p_quality = 0.75) const;
+	Error save_jxl(const String &p_path, float p_quality = 1.0f) const;
 	Error save_dds(const String &p_path) const;
 	Vector<uint8_t> save_png_to_buffer() const;
 	Vector<uint8_t> save_jpg_to_buffer(float p_quality = 0.75) const;
+	Vector<uint8_t> save_jxl_to_buffer(float p_quality = 1.0f) const;
 	Vector<uint8_t> save_exr_to_buffer(bool p_grayscale = false, bool p_color_image = false, float p_max_value = -1.0f) const;
 	Vector<uint8_t> save_dds_to_buffer() const;
 	Error save_exr(const String &p_path, bool p_grayscale = false, bool p_color_image = false, float p_max_value = -1.0f) const;
@@ -445,6 +453,7 @@ public:
 	Error load_ktx_from_buffer(const Vector<uint8_t> &p_array);
 	Error load_dds_from_buffer(const Vector<uint8_t> &p_array);
 	Error load_exr_from_buffer(const Vector<uint8_t> &p_array);
+	Error load_jxl_from_buffer(const Vector<uint8_t> &p_array);
 
 	Error load_svg_from_buffer(const Vector<uint8_t> &p_array, float scale = 1.0);
 	Error load_svg_from_string(const String &p_svg_str, float scale = 1.0);
