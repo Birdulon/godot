@@ -108,6 +108,7 @@ if env["builtin_sdl"]:
         "joystick/hidapi/SDL_hidapi_stadia.c",
         "joystick/hidapi/SDL_hidapi_steam.c",
         "joystick/hidapi/SDL_hidapi_steamdeck.c",
+        "joystick/hidapi/SDL_hidapi_steam_triton.c",
         "joystick/hidapi/SDL_hidapi_steam_hori.c",
         "joystick/hidapi/SDL_hidapi_switch.c",
         "joystick/hidapi/SDL_hidapi_wii.c",
