@@ -283,13 +283,22 @@ void JoypadSDL::process_events() {
 
 				case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:
 				case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION:
+					Input::get_singleton()->joy_touchpad(
+							joy_id,
+							sdl_event.gtouchpad.touchpad,
+							sdl_event.gtouchpad.finger,
+							Vector2(sdl_event.gtouchpad.x, sdl_event.gtouchpad.y),
+							sdl_event.gtouchpad.pressure,
+							true);
+					break;
 				case SDL_EVENT_GAMEPAD_TOUCHPAD_UP:
 					Input::get_singleton()->joy_touchpad(
 							joy_id,
 							sdl_event.gtouchpad.touchpad,
 							sdl_event.gtouchpad.finger,
 							Vector2(sdl_event.gtouchpad.x, sdl_event.gtouchpad.y),
-							sdl_event.gtouchpad.pressure);
+							sdl_event.gtouchpad.pressure,
+							false);
 					break;
 			}
 		}

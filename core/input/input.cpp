@@ -1888,7 +1888,7 @@ void Input::joy_motion_sensors(int p_device, const Vector3 &p_accelerometer, con
 	motion->gamepad_motion->ProcessMotion(gyro_degrees.x, gyro_degrees.y, gyro_degrees.z, accel_g.x, accel_g.y, accel_g.z, delta_time);
 }
 
-void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector2 &p_value, float p_pressure) {
+void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector2 &p_value, float p_pressure, bool p_pressed) {
 	_THREAD_SAFE_METHOD_
 
 	if (_should_ignore_joypad_events()) {
@@ -1897,7 +1897,7 @@ void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vecto
 
 	TouchpadInfo &touch = joy_touch[p_device];
 	uint16_t index = p_finger | (p_touchpad << 8);
-	if (p_pressure > 0.0) {
+	if (p_pressed) {
 		touch.finger_info[index] = TouchpadFingerInfo{ p_value, p_pressure };
 	} else {
 		touch.finger_info.erase(index);
