@@ -225,6 +225,17 @@
 				[b]Note:[/b] This feature is only supported on Windows, Linux, macOS, and iOS.
 			</description>
 		</method>
+		<method name="get_joy_touchpad" qualifiers="const" experimental="">
+			<return type="Vector3" />
+			<param index="0" name="device" type="int" />
+			<param index="1" name="finger" type="int" />
+			<param index="2" name="touchpad" type="int" default="0" />
+			<description>
+				Returns the position and pressure of the specified finger on the specified touchpad on the joypad. The X, Y, and pressure values are in the range from [code]0.0[/code] to [code]1.0[/code], with [code](0.0, 0.0, 0.0)[/code] representing the top left corner of the touchpad at minimum pressure and [code](1.0, 1.0, 1.0)[/code] representing the bottom right corner at maximum pressure.
+				If the joypad doesn't have the specified touchpad or the specified finger is not currently touching the touchpad, this method returns [constant Vector3.ZERO].
+				[b]Note:[/b] This feature is only supported on Windows, Linux, macOS, and iOS.
+			</description>
+		</method>
 		<method name="get_joy_touchpad_finger_position" qualifiers="const" experimental="">
 			<return type="Vector2" />
 			<param index="0" name="device" type="int" />

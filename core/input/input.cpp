@@ -179,6 +179,7 @@ void Input::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_joy_motion_sensors_calibration", "device", "calibration_info"), &Input::set_joy_motion_sensors_calibration);
 	ClassDB::bind_method(D_METHOD("is_joy_motion_sensors_calibrated", "device"), &Input::is_joy_motion_sensors_calibrated);
 	ClassDB::bind_method(D_METHOD("is_joy_motion_sensors_calibrating", "device"), &Input::is_joy_motion_sensors_calibrating);
+	ClassDB::bind_method(D_METHOD("get_joy_touchpad_finger", "device", "finger", "touchpad"), &Input::get_joy_touchpad_finger, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("get_joy_touchpad_finger_position", "device", "finger", "touchpad"), &Input::get_joy_touchpad_finger_position, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("get_joy_touchpad_finger_pressure", "device", "finger", "touchpad"), &Input::get_joy_touchpad_finger_pressure, DEFVAL(0));
 	ClassDB::bind_method(D_METHOD("get_joy_touchpad_fingers", "device", "touchpad"), &Input::get_joy_touchpad_fingers, DEFVAL(0));
@@ -802,36 +803,32 @@ Vector3 Input::get_gyroscope() const {
 	return gyroscope;
 }
 
-Vector2 Input::get_joy_touchpad_finger_position(int p_device, int p_finger, int p_touchpad) const {
+Vector3 Input::get_joy_touchpad_finger(int p_device, int p_finger, int p_touchpad) const {
 	_THREAD_SAFE_METHOD_
 	const TouchpadInfo *touch = joy_touch.getptr(p_device);
 	if (touch == nullptr) {
-		return Vector2();
+		return Vector3();
 	}
 
 	uint16_t index = p_finger | (p_touchpad << 8);
-	const TouchpadFingerInfo *finger_info = touch->finger_info.getptr(index);
+	const Vector3 *finger_info = touch->finger_info.getptr(index);
 	if (finger_info == nullptr) {
-		return Vector2();
+		return Vector3();
 	}
 
-	return finger_info->position;
+	return *finger_info;
+}
+
+Vector2 Input::get_joy_touchpad_finger_position(int p_device, int p_finger, int p_touchpad) const {
+	_THREAD_SAFE_METHOD_
+	const Vector3 xyp = get_joy_touchpad_finger(p_device, p_finger, p_touchpad);
+	return Vector2(xyp.x, xyp.y);
 }
 
 float Input::get_joy_touchpad_finger_pressure(int p_device, int p_finger, int p_touchpad) const {
 	_THREAD_SAFE_METHOD_
-	const TouchpadInfo *touch = joy_touch.getptr(p_device);
-	if (touch == nullptr) {
-		return 0.0f;
-	}
-
-	uint16_t index = p_finger | (p_touchpad << 8);
-	const TouchpadFingerInfo *finger_info = touch->finger_info.getptr(index);
-	if (finger_info == nullptr) {
-		return 0.0f;
-	}
-
-	return finger_info->pressure;
+	const Vector3 xyp = get_joy_touchpad_finger(p_device, p_finger, p_touchpad);
+	return xyp.z;
 }
 
 PackedInt32Array Input::get_joy_touchpad_fingers(int p_device, int p_touchpad) const {
@@ -842,7 +839,7 @@ PackedInt32Array Input::get_joy_touchpad_fingers(int p_device, int p_touchpad) c
 	}
 
 	PackedInt32Array result;
-	for (const KeyValue<uint16_t, TouchpadFingerInfo> &index : touch->finger_info) {
+	for (const KeyValue<uint16_t, Vector3> &index : touch->finger_info) {
 		int touchpad = index.key >> 8;
 		if (touchpad == p_touchpad) {
 			result.append(index.key & 0xFF);
@@ -1888,7 +1885,7 @@ void Input::joy_motion_sensors(int p_device, const Vector3 &p_accelerometer, con
 	motion->gamepad_motion->ProcessMotion(gyro_degrees.x, gyro_degrees.y, gyro_degrees.z, accel_g.x, accel_g.y, accel_g.z, delta_time);
 }
 
-void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector2 &p_value, float p_pressure, bool p_pressed) {
+void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector3 &p_position, bool p_pressed) {
 	_THREAD_SAFE_METHOD_
 
 	if (_should_ignore_joypad_events()) {
@@ -1898,7 +1895,7 @@ void Input::joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vecto
 	TouchpadInfo &touch = joy_touch[p_device];
 	uint16_t index = p_finger | (p_touchpad << 8);
 	if (p_pressed) {
-		touch.finger_info[index] = TouchpadFingerInfo{ p_value, p_pressure };
+		touch.finger_info[index] = p_position;
 	} else {
 		touch.finger_info.erase(index);
 	}

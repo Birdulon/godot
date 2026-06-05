@@ -194,14 +194,9 @@ private:
 
 	HashMap<int, MotionInfo> joy_motion;
 
-	struct TouchpadFingerInfo {
-		Vector2 position;
-		float pressure;
-	};
-
 	struct TouchpadInfo {
 		int num_touchpads = 0;
-		HashMap<uint16_t, TouchpadFingerInfo> finger_info;
+		HashMap<uint16_t, Vector3> finger_info;
 	};
 
 	HashMap<int, TouchpadInfo> joy_touch;
@@ -399,6 +394,7 @@ public:
 	Vector3 get_magnetometer() const;
 	Vector3 get_gyroscope() const;
 
+	Vector3 get_joy_touchpad_finger(int p_device, int p_finger, int p_touchpad = 0) const;
 	Vector2 get_joy_touchpad_finger_position(int p_device, int p_finger, int p_touchpad = 0) const;
 	float get_joy_touchpad_finger_pressure(int p_device, int p_finger, int p_touchpad = 0) const;
 	PackedInt32Array get_joy_touchpad_fingers(int p_device, int p_touchpad = 0) const;
@@ -477,7 +473,7 @@ public:
 	void joy_axis(int p_device, JoyAxis p_axis, float p_value);
 	void joy_hat(int p_device, BitField<HatMask> p_val);
 	void joy_motion_sensors(int p_device, const Vector3 &p_accelerometer, const Vector3 &p_gyroscope);
-	void joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector2 &p_position, float p_pressure, bool p_pressed);
+	void joy_touchpad(int p_device, int p_touchpad, int p_finger, const Vector3 &p_position, bool p_pressed);
 
 	void add_joy_mapping(const String &p_mapping, bool p_update_existing = false);
 	void remove_joy_mapping(const String &p_guid);
