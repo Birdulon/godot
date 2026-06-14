@@ -33,108 +33,278 @@
 #include <jxl/decode.h>
 #include <jxl/encode.h>
 
+// Attempts to decode a JPEG XL (or JPEG) image from a buffer using libjxl.
+// For JPEG files, this internally transcodes JPEG -> JXL -> pixels using
+// JxlEncoderAddJPEGFrame so that no external JPEG library is needed.
 Error jxl_load_image_from_buffer(Image *p_image, const uint8_t *p_buffer, int p_buffer_len) {
-	JxlDecoder *dec = JxlDecoderCreate(nullptr);
-	if (dec == nullptr) {
-		return FAILED;
-	}
+	// --- Phase 1: Try direct JPEG XL decoding ---
+	{
+		JxlDecoder *dec = JxlDecoderCreate(nullptr);
+		if (dec == nullptr) {
+			return FAILED;
+		}
 
-	if (JxlDecoderSubscribeEvents(dec, JXL_DEC_BASIC_INFO | JXL_DEC_COLOR_ENCODING | JXL_DEC_FULL_IMAGE) != JXL_DEC_SUCCESS) {
-		JxlDecoderDestroy(dec);
-		return ERR_FILE_CORRUPT;
-	}
-
-	if (JxlDecoderSetInput(dec, p_buffer, p_buffer_len) != JXL_DEC_SUCCESS) {
-		JxlDecoderDestroy(dec);
-		return ERR_FILE_CORRUPT;
-	}
-
-	JxlBasicInfo info;
-	JxlPixelFormat format = { 4, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0 };
-
-	Vector<uint8_t> data;
-	Image::Format gd_pixel_format = Image::FORMAT_RGBA8;
-
-	for (;;) {
-		JxlDecoderStatus status = JxlDecoderProcessInput(dec);
-		if (status == JXL_DEC_ERROR || status == JXL_DEC_NEED_MORE_INPUT) {
+		if (JxlDecoderSubscribeEvents(dec, JXL_DEC_BASIC_INFO | JXL_DEC_COLOR_ENCODING | JXL_DEC_FULL_IMAGE) != JXL_DEC_SUCCESS) {
 			JxlDecoderDestroy(dec);
 			return ERR_FILE_CORRUPT;
-		} else if (status == JXL_DEC_BASIC_INFO) {
-			if (JxlDecoderGetBasicInfo(dec, &info) != JXL_DEC_SUCCESS) {
-				JxlDecoderDestroy(dec);
-				return ERR_FILE_CORRUPT;
-			}
-
-			bool is_float = info.exponent_bits_per_sample > 0;
-			bool is_16bit = info.bits_per_sample > 8;
-
-			if (is_float) {
-				format.data_type = JXL_TYPE_FLOAT;
-				if (info.alpha_bits == 0 && info.num_color_channels == 1) {
-					format.num_channels = 1;
-					gd_pixel_format = Image::FORMAT_RF;
-				} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
-					format.num_channels = 3;
-					gd_pixel_format = Image::FORMAT_RGBF;
-				} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
-					format.num_channels = 2;
-					gd_pixel_format = Image::FORMAT_RGF;
-				} else {
-					format.num_channels = 4;
-					gd_pixel_format = Image::FORMAT_RGBAF;
-				}
-			} else if (is_16bit) {
-				format.data_type = JXL_TYPE_UINT16;
-				if (info.alpha_bits == 0 && info.num_color_channels == 1) {
-					format.num_channels = 1;
-					gd_pixel_format = Image::FORMAT_R16;
-				} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
-					format.num_channels = 3;
-					gd_pixel_format = Image::FORMAT_RGB16;
-				} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
-					format.num_channels = 2;
-					gd_pixel_format = Image::FORMAT_RG16;
-				} else {
-					format.num_channels = 4;
-					gd_pixel_format = Image::FORMAT_RGBA16;
-				}
-			} else {
-				format.data_type = JXL_TYPE_UINT8;
-				if (info.alpha_bits == 0 && info.num_color_channels == 1) {
-					format.num_channels = 1;
-					gd_pixel_format = Image::FORMAT_L8;
-				} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
-					format.num_channels = 3;
-					gd_pixel_format = Image::FORMAT_RGB8;
-				} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
-					format.num_channels = 2;
-					gd_pixel_format = Image::FORMAT_LA8;
-				} else {
-					format.num_channels = 4;
-					gd_pixel_format = Image::FORMAT_RGBA8;
-				}
-			}
-		} else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER) {
-			size_t buffer_size;
-			if (JxlDecoderImageOutBufferSize(dec, &format, &buffer_size) != JXL_DEC_SUCCESS) {
-				JxlDecoderDestroy(dec);
-				return ERR_FILE_CORRUPT;
-			}
-			data.resize(buffer_size);
-			if (JxlDecoderSetImageOutBuffer(dec, &format, data.ptrw(), buffer_size) != JXL_DEC_SUCCESS) {
-				JxlDecoderDestroy(dec);
-				return ERR_FILE_CORRUPT;
-			}
-		} else if (status == JXL_DEC_SUCCESS) {
-			break;
 		}
+
+		if (JxlDecoderSetInput(dec, p_buffer, p_buffer_len) != JXL_DEC_SUCCESS) {
+			JxlDecoderDestroy(dec);
+			return ERR_FILE_CORRUPT;
+		}
+
+		JxlBasicInfo info;
+		JxlPixelFormat format = { 4, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0 };
+
+		Vector<uint8_t> data;
+		Image::Format gd_pixel_format = Image::FORMAT_RGBA8;
+
+		bool jxl_success = false;
+
+		for (;;) {
+			JxlDecoderStatus status = JxlDecoderProcessInput(dec);
+			if (status == JXL_DEC_ERROR || status == JXL_DEC_NEED_MORE_INPUT) {
+				// Not a valid JXL file (or more input needed).
+				break;
+			} else if (status == JXL_DEC_BASIC_INFO) {
+				if (JxlDecoderGetBasicInfo(dec, &info) != JXL_DEC_SUCCESS) {
+					break;
+				}
+
+				bool is_float = info.exponent_bits_per_sample > 0;
+				bool is_16bit = info.bits_per_sample > 8;
+
+				if (is_float) {
+					format.data_type = JXL_TYPE_FLOAT;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_RF;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGBF;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_RGF;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBAF;
+					}
+				} else if (is_16bit) {
+					format.data_type = JXL_TYPE_UINT16;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_R16;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGB16;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_RG16;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBA16;
+					}
+				} else {
+					format.data_type = JXL_TYPE_UINT8;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_L8;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGB8;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_LA8;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBA8;
+					}
+				}
+			} else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER) {
+				size_t buffer_size;
+				if (JxlDecoderImageOutBufferSize(dec, &format, &buffer_size) != JXL_DEC_SUCCESS) {
+					break;
+				}
+				data.resize(buffer_size);
+				if (JxlDecoderSetImageOutBuffer(dec, &format, data.ptrw(), buffer_size) != JXL_DEC_SUCCESS) {
+					break;
+				}
+			} else if (status == JXL_DEC_SUCCESS) {
+				jxl_success = true;
+				break;
+			}
+		}
+
+		if (jxl_success) {
+			JxlDecoderDestroy(dec);
+			p_image->set_data(info.xsize, info.ysize, false, gd_pixel_format, data);
+			return OK;
+		}
+
+		JxlDecoderDestroy(dec);
 	}
 
-	JxlDecoderDestroy(dec);
-	p_image->set_data(info.xsize, info.ysize, false, gd_pixel_format, data);
-	return OK;
+	// --- Phase 2: If the data looks like a regular JPEG, transcode it through JXL ---
+	// libjxl's JxlDecoder does not natively parse plain JPEG files (they start
+	// with 0xFF 0xD8 0xFF, not the JXL codestream marker 0xFF 0x0A). However,
+	// JxlEncoderAddJPEGFrame can take raw JPEG bytes, parse them internally,
+	// and produce a valid JXL container. We then decode that container back to
+	// pixels -- all through libjxl without involving libturbo-jpeg.
+	if (p_buffer_len >= 3 && p_buffer[0] == 0xFF && p_buffer[1] == 0xD8 && p_buffer[2] == 0xFF) {
+		// --- Step A: Encode JPEG -> JXL in memory ---
+		JxlEncoder *enc = JxlEncoderCreate(nullptr);
+		if (enc == nullptr) {
+			return FAILED;
+		}
+
+		JxlEncoderUseContainer(enc, JXL_TRUE);
+
+		JxlEncoderFrameSettings *frame_settings = JxlEncoderFrameSettingsCreate(enc, nullptr);
+		if (!frame_settings) {
+			JxlEncoderDestroy(enc);
+			return FAILED;
+		}
+
+		// Losslessly store the decoded JPEG pixels in the JXL codestream.
+		JxlEncoderSetFrameLossless(frame_settings, JXL_TRUE);
+
+		if (JxlEncoderAddJPEGFrame(frame_settings, p_buffer, p_buffer_len) != JXL_ENC_SUCCESS) {
+			JxlEncoderDestroy(enc);
+			return FAILED;
+		}
+
+		JxlEncoderCloseInput(enc);
+
+		Vector<uint8_t> jxl_data;
+		jxl_data.resize(65536);
+		uint8_t *next_out = jxl_data.ptrw();
+		size_t avail_out = jxl_data.size();
+
+		JxlEncoderStatus process_result;
+		while ((process_result = JxlEncoderProcessOutput(enc, &next_out, &avail_out)) == JXL_ENC_NEED_MORE_OUTPUT) {
+			size_t offset = next_out - jxl_data.ptrw();
+			jxl_data.resize(jxl_data.size() * 2);
+			next_out = jxl_data.ptrw() + offset;
+			avail_out = jxl_data.size() - offset;
+		}
+
+		if (process_result != JXL_ENC_SUCCESS) {
+			JxlEncoderDestroy(enc);
+			return FAILED;
+		}
+
+		jxl_data.resize(next_out - jxl_data.ptrw());
+		JxlEncoderDestroy(enc);
+
+		// --- Step B: Decode the generated JXL data back to pixels ---
+		JxlDecoder *dec = JxlDecoderCreate(nullptr);
+		if (dec == nullptr) {
+			return FAILED;
+		}
+
+		if (JxlDecoderSubscribeEvents(dec, JXL_DEC_BASIC_INFO | JXL_DEC_COLOR_ENCODING | JXL_DEC_FULL_IMAGE) != JXL_DEC_SUCCESS) {
+			JxlDecoderDestroy(dec);
+			return ERR_FILE_CORRUPT;
+		}
+
+		if (JxlDecoderSetInput(dec, jxl_data.ptr(), jxl_data.size()) != JXL_DEC_SUCCESS) {
+			JxlDecoderDestroy(dec);
+			return ERR_FILE_CORRUPT;
+		}
+
+		JxlBasicInfo info;
+		JxlPixelFormat format = { 4, JXL_TYPE_UINT8, JXL_LITTLE_ENDIAN, 0 };
+
+		Vector<uint8_t> data;
+		Image::Format gd_pixel_format = Image::FORMAT_RGBA8;
+
+		for (;;) {
+			JxlDecoderStatus status = JxlDecoderProcessInput(dec);
+			if (status == JXL_DEC_ERROR || status == JXL_DEC_NEED_MORE_INPUT) {
+				JxlDecoderDestroy(dec);
+				return ERR_FILE_CORRUPT;
+			} else if (status == JXL_DEC_BASIC_INFO) {
+				if (JxlDecoderGetBasicInfo(dec, &info) != JXL_DEC_SUCCESS) {
+					JxlDecoderDestroy(dec);
+					return ERR_FILE_CORRUPT;
+				}
+
+				bool is_float = info.exponent_bits_per_sample > 0;
+				bool is_16bit = info.bits_per_sample > 8;
+
+				if (is_float) {
+					format.data_type = JXL_TYPE_FLOAT;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_RF;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGBF;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_RGF;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBAF;
+					}
+				} else if (is_16bit) {
+					format.data_type = JXL_TYPE_UINT16;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_R16;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGB16;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_RG16;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBA16;
+					}
+				} else {
+					format.data_type = JXL_TYPE_UINT8;
+					if (info.alpha_bits == 0 && info.num_color_channels == 1) {
+						format.num_channels = 1;
+						gd_pixel_format = Image::FORMAT_L8;
+					} else if (info.alpha_bits == 0 && info.num_color_channels == 3) {
+						format.num_channels = 3;
+						gd_pixel_format = Image::FORMAT_RGB8;
+					} else if (info.alpha_bits > 0 && info.num_color_channels == 1) {
+						format.num_channels = 2;
+						gd_pixel_format = Image::FORMAT_LA8;
+					} else {
+						format.num_channels = 4;
+						gd_pixel_format = Image::FORMAT_RGBA8;
+					}
+				}
+			} else if (status == JXL_DEC_NEED_IMAGE_OUT_BUFFER) {
+				size_t buffer_size;
+				if (JxlDecoderImageOutBufferSize(dec, &format, &buffer_size) != JXL_DEC_SUCCESS) {
+					JxlDecoderDestroy(dec);
+					return ERR_FILE_CORRUPT;
+				}
+				data.resize(buffer_size);
+				if (JxlDecoderSetImageOutBuffer(dec, &format, data.ptrw(), buffer_size) != JXL_DEC_SUCCESS) {
+					JxlDecoderDestroy(dec);
+					return ERR_FILE_CORRUPT;
+				}
+			} else if (status == JXL_DEC_SUCCESS) {
+				break;
+			}
+		}
+
+		JxlDecoderDestroy(dec);
+		p_image->set_data(info.xsize, info.ysize, false, gd_pixel_format, data);
+		return OK;
+	}
+
+	// Not a recognized JXL or JPEG file.
+	return ERR_FILE_CORRUPT;
 }
+
+
 
 Error ImageLoaderLibJXL::load_image(Ref<Image> p_image, Ref<FileAccess> f, BitField<ImageFormatLoader::LoaderFlags> p_flags, float p_scale) {
 	Vector<uint8_t> src_image;
@@ -153,6 +323,11 @@ Error ImageLoaderLibJXL::load_image(Ref<Image> p_image, Ref<FileAccess> f, BitFi
 
 void ImageLoaderLibJXL::get_recognized_extensions(List<String> *p_extensions) const {
 	p_extensions->push_back("jxl");
+	// Also register for JPEG files so this loader can be used as an
+	// alternative to libturbo-jpeg (the JPEG -> JXL -> pixels roundtrip
+	// is handled internally by jxl_load_image_from_buffer).
+	p_extensions->push_back("jpg");
+	p_extensions->push_back("jpeg");
 }
 
 static Ref<Image> _jxl_mem_loader_func(const uint8_t *p_data, int p_size) {
