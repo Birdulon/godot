@@ -30,12 +30,14 @@
 
 #include "register_types.h"
 
+#include "image_loader_libjpeg_turbo.h"
 #include "resource_saver_jxl.h"
 #include "image_loader_libjxl.h"
 #include "movie_writer_mjpeg.h"
 
 #include "core/object/class_db.h"
 
+static Ref<ImageLoaderLibJPEGTurbo> image_loader_libjpeg_turbo;
 static Ref<ImageLoaderLibJXL> image_loader_libjxl;
 static Ref<ResourceFormatSaverJXL> resource_saver_jxl;
 static MovieWriterMJPEG *writer_mjpeg = nullptr;
@@ -50,6 +52,8 @@ void initialize_jpg_module(ModuleInitializationLevel p_level) {
 		} break;
 
 		case MODULE_INITIALIZATION_LEVEL_SCENE: {
+			image_loader_libjpeg_turbo.instantiate();
+			ImageLoader::add_image_format_loader(image_loader_libjpeg_turbo);
 			image_loader_libjxl.instantiate();
 			ImageLoader::add_image_format_loader(image_loader_libjxl);
 
@@ -65,6 +69,8 @@ void initialize_jpg_module(ModuleInitializationLevel p_level) {
 void uninitialize_jpg_module(ModuleInitializationLevel p_level) {
 	switch (p_level) {
 		case MODULE_INITIALIZATION_LEVEL_SCENE: {
+			ImageLoader::remove_image_format_loader(image_loader_libjpeg_turbo);
+			image_loader_libjpeg_turbo.unref();
 			ResourceSaver::remove_resource_format_saver(resource_saver_jxl);
 			resource_saver_jxl.unref();
 
